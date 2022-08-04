@@ -6,31 +6,29 @@ import (
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
-	"rockt/repository/model"
-	"rockt/repository/repository"
+	"rockt/model"
+	"rockt/repo"
 	"strings"
-	"time"
 )
 
 const createDB string = `
-  CREATE TABLE IF NOT EXISTS userdata (
+  CREATE TABLE IF NOT EXISTS userdata (      
   date DATETIME NOT NULL,
   email TEXT  NOT NULL,
-  sessionid TEXT  NOT NULL
+  sessionid TEXT  NOT NULL,
+  filename TEXT NOT NULL
   );`
 
-const queryDB string = `SELECT * FROM userdata WHERE date BETWEEN ? and ? ORDER BY date ASC;`
+const queryDB string = `SELECT date,email,sessionid FROM userdata WHERE filename = ?  AND date BETWEEN ? and ?  ORDER BY date ASC;`
 
-type repo struct {
+type Repo struct {
 	db *sql.DB
 }
 
-func (r repo) Query(from string, to string) []model.Datarecord {
+func (r Repo) Query(from string, to string, filename string) []model.Datarecord {
 	var records []model.Datarecord
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Second)
-	defer cancel()
 
-	rows, err := r.db.QueryContext(ctx, queryDB, from, to)
+	rows, err := r.db.Query(queryDB, filename, from, to)
 	if err != nil {
 		fmt.Println("Error querying :", err)
 		return records
@@ -41,7 +39,7 @@ func (r repo) Query(from string, to string) []model.Datarecord {
 		err := rows.Scan(&r.DateISO8601, &r.EmailAddress, &r.SessionID)
 
 		if err != nil {
-			fmt.Println("could not scan row: %v", err)
+			log.Println("could not scan row: ", err.Error())
 		}
 
 		records = append(records, r)
@@ -49,20 +47,24 @@ func (r repo) Query(from string, to string) []model.Datarecord {
 
 	defer rows.Close()
 
+	// return empty data if none is found
+	if records == nil {
+		return []model.Datarecord{}
+	}
 	return records
 }
 
-func NewRepository() (repository.Repository, error) {
-	//db, err := sql.Open("sqlite3", "file::memory:?cache=shared")
-	db, err := sql.Open("sqlite3", "/home/nanik/GolandProjects/rockt/repository/data.db")
+func NewRepository() (repo.Repository, error) {
+	db, err := sql.Open("sqlite3", "file::memory:?cache=shared")
+	//db, err := sql.Open("sqlite3", "/home/nanik/GolandProjects/rockt/repository/data.db")
 	if err != nil {
 		return nil, err
 	}
 
-	return repo{db}, nil
+	return Repo{db}, nil
 }
 
-func (r repo) Create() error {
+func (r Repo) Create() error {
 	statement, err := r.db.Prepare(createDB)
 
 	if err != nil {
@@ -73,22 +75,23 @@ func (r repo) Create() error {
 	return err
 }
 
-func (r repo) Close() {
+func (r Repo) Close() {
 	r.db.Close()
 }
 
-func (r repo) BulkInsert(records []model.Datarecord) error {
+func (r Repo) BulkInsert(records []model.Datarecord) error {
 	params := []string{}
 	args := []interface{}{}
 
 	for _, l := range records {
-		params = append(params, "(?, ?, ?)")
+		params = append(params, "(?, ?, ?, ?)")
 		args = append(args, l.DateISO8601)
 		args = append(args, l.EmailAddress)
 		args = append(args, l.SessionID)
+		args = append(args, l.FileName)
 	}
 
-	sInsert := "INSERT INTO userdata (date, email, sessionid) VALUES %s"
+	sInsert := "INSERT INTO userdata (date, email, sessionid, filename) VALUES %s"
 	sStmt := fmt.Sprintf(sInsert, strings.Join(params, ","))
 
 	//Begin: Transaction

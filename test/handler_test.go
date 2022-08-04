@@ -1,4 +1,4 @@
-package main
+package test
 
 import (
 	"bytes"
@@ -7,7 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"rockt/repository/model"
+	"rockt/model"
+	"rockt/router"
 	"testing"
 )
 
@@ -21,12 +22,11 @@ func doPost(r http.Handler, method, path string, body string) *httptest.Response
 func TestInvalidRequest(t *testing.T) {
 	body := "{}"
 	d, _ := os.Getwd()
-	router := SetupRouter(d)
+	router := router.SetupRouter(d, nil)
 	w := doPost(router, "POST", "/", body)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	var response model.ResponseError
 	err := json.Unmarshal([]byte(w.Body.String()), &response)
 	assert.Nil(t, err)
 	assert.Equal(t, "invalid request", response.Message)
-
 }

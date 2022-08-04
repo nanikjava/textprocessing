@@ -1,6 +1,8 @@
-package repository
+package repo
 
-import "rockt/repository/model"
+import (
+	"rockt/model"
+)
 
 //Repository define the different operation that a repository should perform
 type Repository interface {
@@ -13,5 +15,5 @@ type Repository interface {
 	//BulkInsert performs bulk insertion to the repository
 	BulkInsert(log []model.Datarecord) error
 
-	Query(from string, to string) []model.Datarecord
+	Query(from string, to string, filename string) []model.Datarecord
 }
